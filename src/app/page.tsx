@@ -175,6 +175,7 @@ export default function Home() {
     } catch (err) {
       console.error('Error ingesting live telemetry:', err);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const activeAlerts = alerts.filter((a) => a.resolution_status === 'active');

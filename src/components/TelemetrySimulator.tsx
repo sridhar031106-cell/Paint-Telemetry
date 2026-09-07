@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Zap, Flame, Droplet, Package, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -24,11 +24,13 @@ export function TelemetrySimulator({ sensors, onIngestTelemetry }: TelemetrySimu
     onIngestRef.current = onIngestTelemetry;
   }, [onIngestTelemetry]);
 
-  const activeSensors = sensors.length > 0 ? sensors : [
-    { sensor_id: 'SN-MIX-01', location_name: 'Mixing Bay Alpha' },
-    { sensor_id: 'SN-BOOTH-01', location_name: 'Spray Booth 1' },
-    { sensor_id: 'SN-OVEN-01', location_name: 'Drying Oven C' }
-  ];
+  const activeSensors = useMemo(() => {
+    return sensors.length > 0 ? sensors : [
+      { sensor_id: 'SN-MIX-01', location_name: 'Mixing Bay Alpha' },
+      { sensor_id: 'SN-BOOTH-01', location_name: 'Spray Booth 1' },
+      { sensor_id: 'SN-OVEN-01', location_name: 'Drying Oven C' }
+    ];
+  }, [sensors]);
 
   const generateSingleReading = useCallback((overrideScenario?: typeof scenario) => {
     const activeScen = overrideScenario || scenario;
