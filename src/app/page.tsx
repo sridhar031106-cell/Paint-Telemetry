@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { TopNav } from '@/components/TopNav';
 import { LiveGauge } from '@/components/LiveGauge';
@@ -13,155 +13,153 @@ import { ConfigPanel } from '@/components/ConfigPanel';
 import { AuditLogs } from '@/components/AuditLogs';
 import { ExportModal } from '@/components/ExportModal';
 import { UserRole, TelemetryRecord, SensorNode, AlertRecord, SystemConfig, CoatingDefectReport, AuditLog } from '@/lib/types';
-import { ShieldAlert, Cpu, Thermometer, Droplets, Zap } from 'lucide-react';
+import { ShieldAlert, Cpu, Thermometer, Droplets } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 
 export default function Home() {
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [userRole, setUserRole] = useState<UserRole>('operator');
 
-  // Application Data States (Client-Side Hardcoded for Demo)
-  const [sensors, setSensors] = useState<SensorNode[]>([
-    { sensor_id: 'SN-MIX-01', location_name: 'Mixing Room', sensor_type: 'temperature', status: 'active', installation_date: new Date().toISOString(), failed_data_count: 0 },
-    { sensor_id: 'SN-BOOTH-01', location_name: 'Paint Booth A', sensor_type: 'combined', status: 'active', installation_date: new Date().toISOString(), failed_data_count: 0 },
-    { sensor_id: 'SN-OVEN-01', location_name: 'Curing Oven', sensor_type: 'temperature', status: 'active', installation_date: new Date().toISOString(), failed_data_count: 0 }
-  ]);
+  // Application Data States
+  const [sensors, setSensors] = useState<SensorNode[]>([]);
   const [telemetry, setTelemetry] = useState<TelemetryRecord[]>([]);
   const [alerts, setAlerts] = useState<AlertRecord[]>([]);
   const [defects, setDefects] = useState<CoatingDefectReport[]>([]);
-  const [config, setConfig] = useState<SystemConfig | null>({
-    temp_alert_high: 35.0,
-    temp_alert_low: 5.0,
-    rh_alert_high: 75.0,
-    rh_alert_low: 25.0,
-    temp_optimal_min: 17.5,
-    temp_optimal_max: 27.5,
-    rh_optimal_min: 40.0,
-    rh_optimal_max: 60.0,
-    cqi_temp_weight: 0.6,
-    cqi_rh_weight: 0.4,
-    retention_days: 1825,
-    updated_at: new Date().toISOString(),
-    updated_by: 'system'
-  });
+  const [config, setConfig] = useState<SystemConfig | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
 
   // Filter States
   const [selectedSensors, setSelectedSensors] = useState<string[]>(['SN-MIX-01', 'SN-BOOTH-01', 'SN-OVEN-01']);
   const [timeRange, setTimeRange] = useState<string>('24h');
   const [isExportOpen, setIsExportOpen] = useState(false);
-  const [isDemoMode, setIsDemoMode] = useState(false);
 
-  // Client-Side Hardware Simulator (Controlled by Demo Mode)
+  // Fetch initial data
+  const fetchData = async () => {
+    try {
+      // Fetch Sensors
+      const sensorsRes = await fetch('/api/sensors');
+      const sensorsJson = await sensorsRes.json();
+      if (sensorsJson.success) setSensors(sensorsJson.data);
+
+      // Fetch Telemetry History
+      const telemetryRes = await fetch(`/api/telemetry?sensors=${selectedSensors.join(',')}&limit=500`);
+      const telemetryJson = await telemetryRes.json();
+      if (telemetryJson.success) setTelemetry(telemetryJson.data);
+
+      // Fetch Alerts
+      const alertsRes = await fetch('/api/alerts');
+      const alertsJson = await alertsRes.json();
+      if (alertsJson.success) setAlerts(alertsJson.data);
+
+      // Fetch Defects
+      const defectsRes = await fetch('/api/defects');
+      const defectsJson = await defectsRes.json();
+      if (defectsJson.success) setDefects(defectsJson.data);
+
+      // Fetch Config
+      const configRes = await fetch('/api/config');
+      const configJson = await configRes.json();
+      if (configJson.success) setConfig(configJson.data);
+
+      // Fetch Audit Logs
+      const auditRes = await fetch('/api/audit');
+      const auditJson = await auditRes.json();
+      if (auditJson.success) setAuditLogs(auditJson.data);
+    } catch (err) {
+      console.error('Error loading telemetry data:', err);
+    }
+  };
+
+  // Setup auto-refresh polling for real-time dashboard feel
   useEffect(() => {
-    if (!isDemoMode || !config) return;
-
-    const simSensors = ['SN-MIX-01', 'SN-BOOTH-01', 'SN-OVEN-01'];
-    
-    const simulatorInterval = setInterval(() => {
-      const sensorId = simSensors[Math.floor(Math.random() * simSensors.length)];
-      
-      let temp = 22.5 + (Math.random() * 2 - 1);
-      let rh = 50.0 + (Math.random() * 4 - 2);
-
-      let anomalyDetected = false;
-      let anomalyType = '';
-
-      // 15% chance to simulate an anomaly (spike or drop)
-      if (Math.random() > 0.85) {
-        anomalyDetected = true;
-        if (Math.random() > 0.5) {
-          // Guarantee temp exceeds 35.0 threshold
-          temp = 36.0 + (Math.random() * 10);
-          anomalyType = `High Temperature Spike (${temp.toFixed(1)}°C)`;
-        } else {
-          // Guarantee rh drops below 30.0 threshold
-          rh = 15.0 + (Math.random() * 10);
-          anomalyType = `Critical Humidity Drop (${rh.toFixed(1)}%)`;
-        }
-      }
-
-      const newRecord: TelemetryRecord = {
-        id: Math.floor(Math.random() * 1000000),
-        sensor_id: sensorId,
-        temperature_celsius: Math.round(temp * 10) / 10,
-        humidity_percent: Math.round(rh * 2) / 2,
-        timestamp: new Date().toISOString(),
-        record_status: 'valid',
-        cqi_value: anomalyDetected ? Math.floor(Math.random() * 30 + 40) : Math.floor(Math.random() * 10 + 90),
-        batch_id: 'BATCH-SIM-01'
-      };
-
-      setTelemetry(prev => [...prev.slice(-299), newRecord]);
-
-      if (anomalyDetected && (temp > config.temp_alert_high || rh < config.rh_optimal_min - 10)) {
-        const newAlert: AlertRecord = {
-          id: Math.floor(Math.random() * 1000000),
-          alert_type: temp > config.temp_alert_high ? 'Temperature Exceeded' : 'Humidity Out of Bounds',
-          severity: 'critical',
-          description: anomalyType,
-          timestamp: new Date().toISOString(),
-          resolution_status: 'active',
-          current_value: temp > config.temp_alert_high ? temp : rh,
-          threshold_value: temp > config.temp_alert_high ? config.temp_alert_high : (config.rh_optimal_min - 10),
-          impact_analysis: 'Simulated Anomaly Impact',
-          affected_sensors: [sensorId]
-        };
-        setAlerts(prev => [newAlert, ...prev]);
-        setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'CREATE', affected_resource_id: newAlert.id!.toString(), user_id: 'system', timestamp: new Date().toISOString(), details: anomalyType }, ...prev]);
-      }
-    }, 2500);
-
-    return () => clearInterval(simulatorInterval);
-  }, [isDemoMode, config]);
+    fetchData(); // initial fetch
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 3000);
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSensors]);
 
   // Sensor Handlers
   const handleRegisterSensor = async (sensorData: { sensor_id: string; location_name: string; sensor_type: string }) => {
-    const newSensor: SensorNode = {
-      ...sensorData,
-      sensor_type: sensorData.sensor_type as any,
-      status: 'active',
-      installation_date: new Date().toISOString(),
-      failed_data_count: 0
-    };
-    setSensors(prev => [...prev, newSensor]);
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'CREATE', affected_resource_id: sensorData.sensor_id, user_id: userRole, timestamp: new Date().toISOString(), details: '' }, ...prev]);
+    try {
+      const res = await fetch('/api/sensors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...sensorData, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error registering sensor:', err);
+    }
   };
 
   const handleUpdateSensorStatus = async (sensorId: string, status: string) => {
-    setSensors(prev => prev.map(s => s.sensor_id === sensorId ? { ...s, status: status as any } : s));
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'UPDATE', affected_resource_id: sensorId, user_id: userRole, timestamp: new Date().toISOString(), details: `Status set to ${status}` }, ...prev]);
+    try {
+      const res = await fetch('/api/sensors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sensor_id: sensorId, status, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error updating sensor status:', err);
+    }
   };
 
   const handleUpdateSensorLocation = async (sensorId: string, location_name: string) => {
-    setSensors(prev => prev.map(s => s.sensor_id === sensorId ? { ...s, location_name } : s));
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'UPDATE', affected_resource_id: sensorId, user_id: userRole, timestamp: new Date().toISOString(), details: `Location set to ${location_name}` }, ...prev]);
+    try {
+      const res = await fetch('/api/sensors', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sensor_id: sensorId, location_name, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error updating sensor location:', err);
+    }
   };
 
   // Alert Handlers
   const handleResolveAlert = async (alertId: number) => {
-    setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, resolution_status: 'resolved', resolved_at: new Date().toISOString(), resolved_by: userRole } : a));
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'ALERT_ACK', affected_resource_id: alertId.toString(), user_id: userRole, timestamp: new Date().toISOString(), details: '' }, ...prev]);
+    try {
+      const res = await fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ alert_id: alertId, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error resolving alert:', err);
+    }
   };
 
   // Defect Handlers
   const handleAddDefect = async (defectData: { defect_type: string; severity: string; location_name: string; batch_id?: string; notes?: string }) => {
-    const newDefect: CoatingDefectReport = {
-      id: Math.floor(Math.random() * 1000000).toString(),
-      ...defectData,
-      severity: defectData.severity as any,
-      timestamp: new Date().toISOString()
-    };
-    setDefects(prev => [newDefect, ...prev]);
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'CREATE', affected_resource_id: newDefect.id, user_id: userRole, timestamp: new Date().toISOString(), details: `Type: ${defectData.defect_type}` }, ...prev]);
+    try {
+      const res = await fetch('/api/defects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...defectData, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error adding defect report:', err);
+    }
   };
 
   // Config Handler
   const handleSaveConfig = async (updatedConfig: Partial<SystemConfig>) => {
-    setConfig(prev => prev ? { ...prev, ...updatedConfig, updated_at: new Date().toISOString(), updated_by: userRole } : null);
-    setAuditLogs(prev => [{ id: Math.floor(Math.random() * 1000000), action_type: 'CONFIG_CHANGE', affected_resource_id: 'system', user_id: userRole, timestamp: new Date().toISOString(), details: '' }, ...prev]);
+    try {
+      const res = await fetch('/api/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updatedConfig, user_id: userRole })
+      });
+      if (res.ok) fetchData();
+    } catch (err) {
+      console.error('Error saving config:', err);
+    }
   };
 
   const activeAlerts = alerts.filter((a) => a.resolution_status === 'active');
@@ -191,14 +189,6 @@ export default function Home() {
         <main className="flex-1 p-6 lg:p-8 space-y-6">
         {currentTab === 'dashboard' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-end gap-3 bg-card p-3 rounded-xl border">
-              <div className="flex items-center gap-2">
-                <Zap className={`h-4 w-4 ${isDemoMode ? 'text-amber-500 animate-pulse' : 'text-muted-foreground'}`} />
-                <Label htmlFor="demo-mode" className="text-sm font-semibold cursor-pointer">Live Demo Simulator</Label>
-              </div>
-              <Switch id="demo-mode" checked={isDemoMode} onCheckedChange={setIsDemoMode} />
-            </div>
-
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4 flex items-center gap-3">
@@ -294,7 +284,7 @@ export default function Home() {
               setSelectedSensors={setSelectedSensors}
               timeRange={timeRange}
               setTimeRange={setTimeRange}
-              onRefresh={() => {}}
+              onRefresh={fetchData}
             />
           </div>
         )}
