@@ -12,6 +12,7 @@ import { DefectCorrelator } from '@/components/DefectCorrelator';
 import { ConfigPanel } from '@/components/ConfigPanel';
 import { AuditLogs } from '@/components/AuditLogs';
 import { ExportModal } from '@/components/ExportModal';
+import { TelemetrySimulator } from '@/components/TelemetrySimulator';
 import { UserRole, TelemetryRecord, SensorNode, AlertRecord, SystemConfig, CoatingDefectReport, AuditLog } from '@/lib/types';
 import { ShieldAlert, Cpu, Thermometer, Droplets } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -162,6 +163,20 @@ export default function Home() {
     }
   };
 
+  // Simulator Ingestion Handler
+  const handleIngestTelemetry = async (data: { sensor_id: string; temperature_celsius: number; humidity_percent: number; batch_id?: string }) => {
+    try {
+      await fetch('/api/telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      fetchData();
+    } catch (err) {
+      console.error('Error ingesting live telemetry:', err);
+    }
+  };
+
   const activeAlerts = alerts.filter((a) => a.resolution_status === 'active');
   const latestTelemetry = telemetry[telemetry.length - 1];
 
@@ -189,6 +204,11 @@ export default function Home() {
         <main className="flex-1 p-6 lg:p-8 space-y-6">
         {currentTab === 'dashboard' && (
           <div className="space-y-6">
+            <TelemetrySimulator 
+              sensors={sensors} 
+              onIngestTelemetry={handleIngestTelemetry} 
+            />
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4 flex items-center gap-3">
