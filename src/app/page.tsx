@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { TopNav } from '@/components/TopNav';
 import { LiveGauge } from '@/components/LiveGauge';
@@ -164,7 +164,7 @@ export default function Home() {
   };
 
   // Simulator Ingestion Handler
-  const handleIngestTelemetry = async (data: { sensor_id: string; temperature_celsius: number; humidity_percent: number; batch_id?: string }) => {
+  const handleIngestTelemetry = useCallback(async (data: { sensor_id: string; temperature_celsius: number; humidity_percent: number; batch_id?: string }) => {
     try {
       await fetch('/api/telemetry', {
         method: 'POST',
@@ -175,7 +175,7 @@ export default function Home() {
     } catch (err) {
       console.error('Error ingesting live telemetry:', err);
     }
-  };
+  }, []);
 
   const activeAlerts = alerts.filter((a) => a.resolution_status === 'active');
   const latestTelemetry = telemetry[telemetry.length - 1];
